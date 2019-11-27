@@ -1,0 +1,46 @@
+<?php
+require_once('include/config.php');
+require_once('include/init.php');
+
+$obj=new Database;
+$data = new DataManipulator;
+$jsonArray = array();
+
+if($_REQUEST['prdId']!='')
+$postdata['prdId'] = $_REQUEST['prdId'];
+else
+$err="Required parameter - prdId";
+
+if($_REQUEST['custId']!='')
+$postdata['custId'] = $_REQUEST['custId'];
+else
+$err="Required parameter - custId";
+
+$postdata['created'] = date('Y-m-d H:i:s');
+if($err!='')
+{
+	$jsonArray['Success']='0';
+	$jsonArray['Message']=$err;
+	show_output($jsonArray);
+}	
+	
+	$sql = $conn->get_record_set("SELECT *	FROM `tbl_favorites` WHERE prdId='".$postdata['prdId']."' AND custId='".$postdata['custId']."'");
+	$row = $conn->records_to_array($sql);	
+	if(empty($row))
+	{
+		$data->insert( "tbl_favorites" , $postdata );	
+		$jsonArray['Success']='1';
+		$jsonArray['Message']='Favorite successfully';
+		$jsonArray['isFavorite']='1';
+	}
+	else
+	{
+		$data->delete( "tbl_favorites" , array("prdId"=>$postdata['prdId'],"custId"=>$postdata['custId']));
+		$jsonArray['Success']='1';
+		$jsonArray['Message']='Unfavorite successfully';
+		$jsonArray['isFavorite']='0';
+	}	
+	
+	show_output($jsonArray);
+		
+?>

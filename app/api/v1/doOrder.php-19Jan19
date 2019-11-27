@@ -1,0 +1,291 @@
+<?php
+	require_once("include/config.php");
+	require_once("include/init.php");
+	
+	function rand_string($typeString, $intLength = 6) 
+	{
+
+		if($typeString==1){ $validCharacters = "abcdefghijklmnopqrstuxyvwz0123456789ABCDEFGHIJKLMNOPQRSTUXYVWZ";}
+		if($typeString==2){ $validCharacters = "1234567890";}
+		if($typeString==3){ $validCharacters = "abcdefghijklmnopqrstuxyvwz";}
+		if($typeString==4){ $validCharacters = "ABCDEFGHIJKLMNOPQRSTUXYVWZ";}
+
+		$validCharNumber = strlen($validCharacters);
+		$result = "";
+		for ($i = 0; $i < $intLength; $i++) {
+			$index = mt_rand(0, $validCharNumber - 1);
+			$result .= $validCharacters[$index];
+		}
+		return $result;
+	}
+	function convert_en($string) {
+	$arabic_eastern = array('٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩');
+	$arabic_western = array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+	return str_replace($arabic_eastern, $arabic_western, $string);
+	}
+	
+	$conn=new Database;
+	$data = new DataManipulator;
+	$jsonArray = array();
+	
+	
+	if($_REQUEST['custId']!='')
+		$postdata['custId'] = $_REQUEST['custId'];
+	else
+		$err='Required parameter - custId';
+	
+	if($_REQUEST['productDetails']!='')
+		$products = json_decode($_REQUEST['productDetails']);
+	else
+		$err='Required parameter - productDetails';
+	
+	if(is_numeric($_REQUEST['vat']))	
+		$postdata['vat'] = $_REQUEST['vat'];
+	else
+		$err='Required parameter - vat';
+	
+	if($_REQUEST['couponCode']!='') 
+	$postdata['couponCode'] = trim($_REQUEST['couponCode']);
+	
+	if(is_numeric($_REQUEST['discount'])) 
+		$postdata['discount'] = $_REQUEST['discount'];
+	else
+		$postdata['discount'] = 0;
+	
+	if($_REQUEST['orderType']!='') // charity
+		$postdata['orderType'] = $_REQUEST['orderType'];
+	else
+		$postdata['orderType'] = 'regular';
+
+	if($_REQUEST['paymentType']!='') 
+		$postdata['paymentType'] = $_REQUEST['paymentType'];
+	else
+		$postdata['paymentType'] = 'COD';
+	
+	if($postdata['orderType']=='charity')
+	{
+		if($_REQUEST['charityName']!='')
+			$postdata['charityName'] = $_REQUEST['charityName'];
+		else
+			$err='Required parameter - charityName';
+		
+		if($_REQUEST['recipientName']!='')
+			$postdata['recipientName'] = $_REQUEST['recipientName'];
+		else
+			$err='Required parameter - recipientName';
+		
+		if($_REQUEST['charityPhone']!='')
+			$postdata['charityPhone'] = $_REQUEST['charityPhone'];
+		else
+			$err='Required parameter - charityPhone';
+		
+		if($_REQUEST['charityStreet']!='')
+			$postdata['charityStreet'] = $_REQUEST['charityStreet'];
+		else
+			$err='Required parameter - charityStreet';
+		
+		if($_REQUEST['charityCity']!='')
+			$postdata['charityCity'] = $_REQUEST['charityCity'];
+		else
+			$err='Required parameter - charityCity';
+		
+		if($_REQUEST['charityNeighbor']!='')
+			$postdata['charityNeighbor'] = $_REQUEST['charityNeighbor'];
+		else
+			$err='Required parameter - charityNeighbor';
+	}
+	
+	if(trim($_REQUEST['deliveryTimestamp'])!='') // Y-m-d H:i:s
+		$postdata['deliveryTimestamp'] = convert_en($_REQUEST['deliveryTimestamp']);
+	else
+		$err='Required parameter - deliveryTimestamp'; 
+	
+	$postdata['orderStatus'] = "1";	
+	$postdata['orderTimestamp'] = time();
+	$postdata['created'] = date('Y-m-d H:i:s');	
+	if($err!='')
+	{
+		$jsonArray['Success']='0';
+		$jsonArray['Message']=$err;
+		show_output($jsonArray); 
+	}
+	$postdata['subTotal']  =0;
+	for($i=0;$i<count($products);$i++)
+	{
+		$products[$i]->prdTotalPrice = $products[$i]->prdQty * $products[$i]->prdUnitPrice;
+		$postdata['subTotal'] += $products[$i]->prdTotalPrice;
+		$prd = $data->select( "tbl_products" , "*",array("prdId"=>$products[$i]->prdId) );	
+		$d['prdId'] = $products[$i]->prdId;
+		$d['prdQty'] = $products[$i]->prdQty;
+		$d['qtyUnit'] = $products[$i]->qtyUnit;
+		$d['prdUnitPrice'] = number_format($products[$i]->prdUnitPrice,2);
+		$d['prdTotalPrice'] = $products[$i]->prdTotalPrice;
+		$d['prdName'] = addslashes($prd[0]['prdName']);
+		$d['prdImage'] = $prd[0]['prdImage'];
+		//$products[$i] = $d['prdName'];
+		$d1[] = $d;
+	}
+	$postdata['productDetails'] = json_encode($d1);
+	
+	// START CHECK VAT
+	$vat = $data->select( "tbl_settings" , "*",array("type"=>"vat_percentage"));
+	$vat_value = $vat[0]['value'];
+	$vatAmt = round(($postdata['subTotal']*$vat_value)/100,2);
+	if($vatAmt!=$postdata['vat'])
+	{
+		$jsonArray['Success']='0';
+		$jsonArray['Message']='مبلغ الضريبة غير صحيح.';
+		$postdata['vat'] = $vatAmt;
+		//show_output($jsonArray);
+	}
+	// END CHECK VAT		
+	$subTotalWithVAT = ($postdata['subTotal']+$postdata['vat']);
+	// START COUPON CODE LOGIC
+	if($postdata['couponCode']!='')
+	{	
+		$sql = $conn->get_record_set("SELECT * FROM `tbl_coupons` WHERE couponCode='".$postdata['couponCode']."' AND isDeleted='0'");
+		$row = $conn->records_to_array($sql);	
+		extract($row[0]);
+		if(!empty($row[0]))
+		{
+			if($discountType=='percent')
+			{
+				//$discount = round(($subTotalWithVAT*$discountValue)/100,2);
+				$discount = round(($postdata['subTotal']*$discountValue)/100,2);
+				$postdata['discount'] = $discount; // NEW on 15Jan19
+			}
+			else
+			{
+				$discount = $discountValue;
+				$postdata['discount'] = $discount; // NEW on 15Jan19
+			}		
+			$sql1 = $conn->get_record_set("SELECT *	FROM `tbl_coupons_history` WHERE couponCode='".$postdata['couponCode']."' AND custId='".$postdata['custId']."'");
+			$row1 = $conn->records_to_array($sql1);	
+			if($isActive=='0')
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']='رقم قسيمه غير صالح.';
+				show_output($jsonArray);
+			}	
+			elseif($startTime > date('Y-m-d H:i:s'))
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']='رقم قسيمه غير صالح.';
+				show_output($jsonArray);
+			}
+			elseif($expiryTime < date('Y-m-d H:i:s'))
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']='لقد انتهت صلاحية شفرة القسيمة هذه.';
+				show_output($jsonArray);
+			}
+			elseif($minOrderAmt > $postdata['subTotal'])
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']=' يجب أن يكون الحد الأدنى لمبلغ الطلب '.$minOrderAmt.'.';
+				show_output($jsonArray);
+			}
+			elseif($isMultiUse=='0' && !empty($row1))
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']='لقد استخدمت بالفعل شفرة الكوبون هذه.';
+				show_output($jsonArray);
+			}
+			elseif($discount!=$postdata['discount'])
+			{
+				$jsonArray['Success']='0';
+				$jsonArray['Message']='مبلغ الخصم غير صحيح.';
+				show_output($jsonArray);
+			}
+		}
+		else
+		{
+			$jsonArray['Success']='0';
+			$jsonArray['Message']='رقم قسيمه غير صالح.';
+			show_output($jsonArray);
+		}
+	}	
+	// END COUPON CODE LOGIC
+			
+	$sql = $conn->get_record_set("select * from tbl_customers where custId='".$postdata['custId']."' and isDeleted='0'");
+	$rows = $conn->records_to_array($sql);
+	if(!empty($rows))
+	{
+			/*Edit by keval*/
+			/*$dis = $data->select( "tbl_settings" , "*",array("type"=>"unsubscribers_discount"));
+			$discount_type=$dis[0]['description'];
+			if($discount_type =='percent')
+			{
+				$dis_value = $dis[0]['value'];
+				$postdata['discount'] = $postdata['subTotal']*$dis_value/100;
+			}
+			elseif($discount_type =='flat')
+			{
+				$postdata['discount'] = $dis[0]['value'];
+			}*/
+			$cust = $data->select( "tbl_customers" , "remainBalance", array("custId"=>$postdata['custId']));
+			$postdata['remainBalance'] = $cust[0]['remainBalance'];
+			$postdata['grandTotal'] = ($postdata['subTotal'] + $postdata['vat']) - $postdata['discount'];
+			$POINTS_PER_SR = $data->select( "tbl_settings" , "*" , array("type"=>"points_per_sr") );
+			$postdata['purchasePoints'] = ($postdata['grandTotal'] / $POINTS_PER_SR[0]['value']);
+			$postdata1['purchasePoints'] = $postdata['purchasePoints'] + $rows[0]['purchasePoints'];
+					
+			if($postdata['grandTotal']>=$postdata['remainBalance'])
+			{	
+				$postdata['grandTotal'] = $postdata['grandTotal'] - $postdata['remainBalance'];
+				$postdata1['remainBalance'] = 0;
+			}
+			else
+			{
+				$postdata1['remainBalance'] = ($postdata['remainBalance'] - $postdata['grandTotal']);
+				$postdata['grandTotal'] = 0;
+			}	
+		
+			while(true)
+			{
+				$postdata["invoiceNo"] =  rand_string(2,6);
+				$isExist=$data->select( "tbl_orders", "*", array("invoiceNo"=>$postdata['invoiceNo']));
+				if(empty($isExist[0]))	break;	
+			}
+			//$postdata['orderType'] = "0";
+			//$postdata['orderTime'] = "Any time";
+			$orderId = $data->insert( "tbl_orders" , $postdata);
+			$invoiceNo = $postdata['custId'].$orderId;
+			$data->update( "tbl_orders" , array("invoiceNo"=>$invoiceNo),array("orderId"=>$orderId));
+			//START COUPON CODE HISTORY
+			if($postdata['couponCode']!='')
+			{	
+				$postdata2['couponId'] = $row[0]['couponId'];
+				$postdata2['couponCode'] = $postdata['couponCode'];
+				$postdata2['discount'] = $postdata['discount'];
+				$postdata2['custId'] = $postdata['custId'];
+				$postdata2['orderId'] = $orderId;
+				$postdata2['created'] = date('Y-m-d H:i:s');
+				$id = $data->insert( "tbl_coupons_history" , $postdata2);	
+			}
+			//END COUPON CODE HISTORY
+			$data->update( "tbl_customers" , $postdata1,array("custId"=>$postdata['custId']));
+			$to = $_REQUEST['email'];
+			$subject="New order #".$postdata['invoiceNo'];
+			$message ='Dear Customer,<br/><br/>
+			<span style="text-align:justify;">
+			We received your order. we will start process on it soon.<br/ >
+			We will notify you on change of order status.<br/ ><br/ >
+			
+			If you have any query or trouble on logging feel free to contact us.<br/ ><br/ >		
+			
+			Thank you,<br/ >'.APP_TITLE.'</span>' ;
+			send_mail($to,$subject,$message,$attach);	
+			send_mail(ADMIN_EMAIL,$subject,$message,$attach);	
+			$jsonArray['Success']='1';
+			$jsonArray['Message']="تهانينا! تم استلام طلبك";
+		
+	}
+	else
+	{
+		$jsonArray['Success']='2';
+		$jsonArray['Message']="العميل غير موجود";
+	}
+		
+			
+	show_output($jsonArray);

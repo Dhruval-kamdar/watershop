@@ -1,0 +1,142 @@
+NEW:
+BASE_URL = http://yes.sa/app/watershop/api/v1/
+
+>>User POST method
+
+NOTE:  
+=> Pass "appKey","custId","deviceId","deviceToken","deviceType" tag in header. If it will return "Success=-1", auto logout and must re-login
+=> Must Use POST method
+=> appKey: 424eb6db248f19d0af9c08845433d4cb
+
+1) Customer Registration:
+GET CITIES:
+BASE_URL + /getCities.php
+
+GET DISTRICT:
+BASE_URL + /getDistrict.php?cityId=1
+
+BASE_URL + /signup.php
+INPUT Parameter: fullName,cityId={cityId},districtId={districtId},street,building,houseNo(optional),profilePic,phone,email,address,username,password
+
+======================== START NEW (09/12/2018)==================
+Customer Resend Verificatoin
+BASE_URL + /resendSMS.php?custId=11001
+
+Customer Verificatoin
+BASE_URL + /smsVerification.php?custId=11001&smsVerificationCode=1234
+======================== END NEW (09/12/2018)==================
+
+
+2) Customer Login:
+BASE_URL + /signin.php?username={username/phone}&password=sevenstar@123
+
+3) Update Customer Profile:
+BASE_URL + /profile.php?custId=11001
+INPUT Parameter:
+Required: custId
+Optional: fullName,cityId={cityId},districtId={districtId},street,building,houseNo(optional),profilePic,phone,email,username
+
+4) Customer Logout:
+BASE_URL + signout.php?custId=11001
+
+5) Change Password:
+BASE_URL + /changePass.php?custId=11001&oldpass=sevenstar&newpass=sevenstar@123
+
+6) Forgot Password:
+BASE_URL + /forgotPass.php?email=anas.kadival@gmail.com
+
+9) Get Products List:
+BASE_URL + /getProducts.php?custId=11001
+***NEW
+>>custId
+>>Search parameter:- searchTxt=
+>>Price Filter:- priceFilter=1.5
+>>Sort Parameter:- sortBy={companyName/prdName/prdType/cityName}
+OUTPUT:
+minPrice
+maxPrice
+
+10) Get Fees & VAT:
+BASE_URL + /getFees.php?custId=11001
+
+10.1) Apply Coupon Code:
+BASE_URL + /applyCoupon.php?custId=11001&couponCode=ABC001&orderAmt=11.50
+
+11) Do Order:
+
+GET TIMES:
+BASE_URL + /getDeliveryTimes.php - NEW CHANGE (04/10/2018):
+=======================================
+
+BASE_URL + /doOrder.php?custId=11001&productDetails=&vat=2.5&paymentType={COD/Bank transfer}&couponCode=SPL001&discount={coupon discount value}
+&deliveryTimestamp=dd/mm/yyyy 1pm-2pm&orderType={regular/charity}&charityName=&recipientName=&charityPhone=&charityStreet=&charityCity=&charityNeighbor=
+OPTIONAL: couponCode,discount
+
+Note:- deliveryTimestamp=dd/mm/yyyy + time >> You need call getDeliveryTimes.php >> NEW CHANGE (04/10/2018):
+Parameter format:
+ProductDetails Format: e.g. [{"prdId":"1","prdQty":"5","qtyUnit":"1/4 Kg","prdUnitPrice":"5.00"},{"prdId":"2","prdQty":"3","qtyUnit":"Kg","prdUnitPrice":"10.00"}]
+
+12) Get Past Orders:
+BASE_URL + /pastOrders.php?custId=11001&page={0,1,2...,end}
+Optional Parameter: orderId
+>> For Paging: you got "total_record" tag
+
+12.1) Get Schedule delivery:
+BASE_URL + /scheduleDelivery.php?custId=11001 >> Only Single Record
+
+13) Track Orders:
+BASE_URL + /trackOrder.php?custId=11001&orderId=
+Optional Parameter:- orderId
+
+15) Get Notifications:
+BASE_URL + /getNotifications.php?custId=11001&limit=20&lowerId
+Paging:
+>> limit:- No. of record per page 
+>> lowerId:-  lastid(lowerid) - take from tag "notId"
+
+16) Read Notifications:
+BASE_URL + /readNotification.php?custId=11001&notId=20
+
+17) Reset Notification Badge:
+BASE_URL + /resetBadge.php?custId=11001
+
+18) Get Rate Our Services Questions:
+
+BASE_URL + /checkRatingExist.php?custId=11001
+RESPONSE:
+pending=1:- Open pop up otherwise same flow
+
+BASE_URL + /getRateQuestions.php?custId=11001
+RESPONSE:
+isRated=0:- Yet Not rated 
+isRated=1:- Already rated. you can show rating from que1Rating, que2Rating,.., que5Rating
+
+19) Rate Services: (on submit of getRateQuestions.php questions rating) 
+BASE_URL + /rateServices.php?custId=11001&orderId=&que1Rating=4&que2Rating=4.5&que3Rating=3.5&que4Rating=4.5&que5Rating=3& comment=Nice service. I would like to prefer again
+
+20) Contact Company:
+BASE_URL + /contactCompany.php?type={contactUs/contactCompany}&name=Anas&phone=1234567890&email=abc@gmail.com&message=test&photo=&video=
+
+NEW CHANGE (04/10/2018): email,photo/video
+
+21) Contact US:
+BASE_URL + /contactUs.php
+
+22) Terms & Conditions:
+BASE_URL + /getTerms.php
+
+23) AboutUs:
+BASE_URL + /getAboutUs.php
+
+
+======================================DEMO NOTIFICATIONS============================
+http://yes.sa/app/watershop/api/v1/demo_notification.php?device_type=ios&dev=true&device_token=test&message=Hi,this is test notification
+
+PARAMETER: deviceType={android/ios}
+
+=====================================25/01/2019=====================================
+
+
+Change:- signup.php AND profile.php (to update profile)
+Add New Parameter:- latitude,longitude,address
+Remove Parameter:- cityId={cityId},districtId={districtId},street,building,houseNo
